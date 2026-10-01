@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  # ── 1. PostgreSQL: stores movie metadata ──────────────────────────────────
+  postgres:
+    image: postgres:16
+    container_name: recsys_postgres
+    environment:
+      POSTGRES_USER: recsys
+      POSTGRES_PASSWORD: recsys
+      POSTGRES_DB: recsys
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recsys"]
+      interval: 5s
+      retries: 10
+
+  # ── 2. Qdrant: vector store for movie embeddings ──────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: recsys_qdrant
+    ports:
+      - "6333:6333"   # HTTP / REST
+      - "6334:6334"   # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:6333/healthz || exit 1"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  qdrant_data:
+

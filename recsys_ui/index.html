@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StreamRec — Netflix Style RecSys</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: '#E50914',
+            surface: '#111111',
+            card: '#181818',
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    /* Hide scrollbar for IE, Edge and Firefox */
+    .no-scrollbar {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
+    .poster-gradient {
+      background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(10,10,10,0.95) 90%);
+    }
+  </style>
+</head>
+<body class="bg-surface text-gray-100 min-h-screen font-sans antialiased overflow-x-hidden">
+
+  <!-- Navbar -->
+  <header class="border-b border-white/5 bg-black/80 backdrop-blur sticky top-0 z-50 px-8 py-4">
+    <div class="max-w-[1700px] mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-6">
+        <div class="flex items-center space-x-2">
+          <span class="text-brand font-black text-2xl tracking-tighter">STREAM<span class="text-white">REC</span></span>
+          <span class="text-[10px] bg-brand/20 text-brand px-2 py-0.5 rounded font-mono border border-brand/30 uppercase tracking-widest font-bold">Two-Tower</span>
+        </div>
+        <nav class="hidden md:flex space-x-5 text-sm text-gray-400">
+          <span class="text-white font-medium cursor-pointer">Recommendations</span>
+          <span class="hover:text-white cursor-pointer transition">Top Rated</span>
+          <span class="hover:text-white cursor-pointer transition">MovieLens 100k</span>
+        </nav>
+      </div>
+
+      <!-- Controls & Status Bar -->
+      <div class="flex items-center space-x-4">
+        <!-- Latency Pill -->
+        <div id="latencyTag" class="hidden text-xs bg-emerald-950/60 border border-emerald-800/40 text-emerald-400 px-3 py-1 rounded-full font-mono">
+          <i class="fa-solid fa-bolt mr-1"></i> <span id="latencyVal">0 ms</span>
+        </div>
+
+        <!-- User Selector -->
+        <div class="flex items-center bg-card border border-white/10 rounded-full px-3 py-1 text-sm">
+          <i class="fa-regular fa-user text-gray-400 mr-2 text-xs"></i>
+          <span class="text-xs text-gray-400 mr-1.5">User</span>
+          <input 
+            type="number" 
+            id="userIdInput" 
+            value="42" 
+            min="0" 
+            max="942" 
+            class="w-14 bg-transparent text-white font-mono font-bold focus:outline-none text-center"
+            onchange="fetchRecommendations()"
+          />
+          <button onclick="randomUser()" class="hover:text-brand transition ml-2 text-gray-400" title="Random User">
+            <i class="fa-solid fa-shuffle text-xs"></i>
+          </button>
+        </div>
+
+        <!-- Backend URL Config -->
+        <button onclick="toggleApiSettings()" title="Change Backend URL" class="text-gray-400 hover:text-white text-sm p-2 rounded-full hover:bg-white/5 transition">
+          <i class="fa-solid fa-gear"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Modal to edit Backend URL -->
+  <div id="apiModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-card border border-gray-800 rounded-xl p-6 max-w-md w-full shadow-2xl">
+      <h3 class="text-lg font-semibold mb-2">Backend API Endpoint</h3>
+      <p class="text-sm text-gray-400 mb-4">When deploying to Vercel, replace localhost with your live cloud backend URL.</p>
+      <input type="text" id="apiInput" class="w-full bg-black/50 border border-gray-700 rounded-lg px-4 py-2 font-mono text-sm focus:outline-none focus:border-brand mb-4" />
+      <div class="flex justify-end space-x-3">
+        <button onclick="toggleApiSettings()" class="px-4 py-2 text-sm text-gray-400 hover:text-white">Cancel</button>
+        <button onclick="saveApiUrl()" class="px-4 py-2 text-sm bg-brand hover:bg-red-700 rounded-lg font-medium">Save Endpoint</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hero Banner for Selected User -->
+  <div class="relative bg-gradient-to-b from-red-950/20 via-surface to-surface border-b border-white/5 px-8 pt-10 pb-8">
+    <div class="max-w-[1700px] mx-auto">
+      <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <div class="text-xs uppercase tracking-widest text-brand font-bold mb-1">Personalized Feed</div>
+          <h2 class="text-3xl md:text-4xl font-black text-white tracking-tight" id="heroTitle">
+            Recommended for User <span class="text-brand font-mono">#42</span>
+          </h2>
+          <p class="text-sm text-gray-400 mt-1" id="heroSubtitle">
+            Ranked by Two-Tower Content-Based dot product similarity in Qdrant
+          </p>
+        </div>
+
+        <!-- Carousel navigation buttons -->
+        <div class="flex items-center space-x-3">
+          <span class="text-xs text-gray-400 mr-2 font-mono" id="itemCountTag">30 Movies</span>
+          <button onclick="scrollRow(-1)" class="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition active:scale-95">
+            <i class="fa-solid fa-chevron-left text-sm"></i>
+          </button>
+          <button onclick="scrollRow(1)" class="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition active:scale-95">
+            <i class="fa-solid fa-chevron-right text-sm"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Showcase: Horizontal Scrollable Row (Netflix style) -->
+  <main class="max-w-[1700px] mx-auto px-8 py-8">
+
+    <div class="relative group">
+      <!-- Left scroll arrow overlay -->
+      <button 
+        onclick="scrollRow(-1)" 
+        class="hidden md:flex absolute -left-5 top-1/2 -translate-y-1/2 z-30 w-12 h-24 bg-black/70 hover:bg-black/90 border border-white/10 rounded-lg items-center justify-center text-white opacity-0 group-hover:opacity-100 transition duration-300 backdrop-blur"
+      >
+        <i class="fa-solid fa-chevron-left text-lg"></i>
+      </button>
+
+      <!-- Scrollable Track -->
+      <div 
+        id="movieTrack" 
+        class="flex space-x-6 overflow-x-auto no-scrollbar scroll-smooth py-6 px-1"
+      >
+        <!-- Cards injected dynamically here -->
+      </div>
+
+      <!-- Right scroll arrow overlay -->
+      <button 
+        onclick="scrollRow(1)" 
+        class="hidden md:flex absolute -right-5 top-1/2 -translate-y-1/2 z-30 w-12 h-24 bg-black/70 hover:bg-black/90 border border-white/10 rounded-lg items-center justify-center text-white opacity-0 group-hover:opacity-100 transition duration-300 backdrop-blur"
+      >
+        <i class="fa-solid fa-chevron-right text-lg"></i>
+      </button>
+    </div>
+
+    <!-- Error State -->
+    <div id="errorState" class="hidden bg-red-950/20 border border-red-900/40 rounded-2xl p-8 text-center text-red-300 max-w-xl mx-auto my-12">
+      <i class="fa-solid fa-triangle-exclamation text-4xl mb-3 text-brand"></i>
+      <h3 class="font-bold text-lg mb-1" id="errorTitle">Unable to fetch recommendations</h3>
+      <p class="text-sm text-red-400/80 mb-4" id="errorMessage"></p>
+      <button onclick="fetchRecommendations()" class="px-5 py-2 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition">Retry</button>
+    </div>
+
+  </main>
+
+  <script>
+    let API_BASE = localStorage.getItem('recsys_api_url') || 'http://localhost:8000';
+
+    function toggleApiSettings() {
+      document.getElementById('apiModal').classList.toggle('hidden');
+    }
+
+    function saveApiUrl() {
+      const val = document.getElementById('apiInput').value.trim().replace(/\/$/, '');
+      if (val) {
+        API_BASE = val;
+        localStorage.setItem('recsys_api_url', API_BASE);
+      }
+      toggleApiSettings();
+      fetchRecommendations();
+    }
+
+    function randomUser() {
+      document.getElementById('userIdInput').value = Math.floor(Math.random() * 943);
+      fetchRecommendations();
+    }
+
+    function scrollRow(direction) {
+      const track = document.getElementById('movieTrack');
+      const scrollAmount = 800;
+      track.scrollBy({ left: direction * scrollAmount, behavior: 'smooth' });
+    }
+
+    // 1-to-1 mapping: Exactly 1 distinct cinematic thumbnail for each of the 19 MovieLens genres
+    const GENRE_THUMBNAILS = {
+      'Action':       'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=600&q=80', // High-octane action explosion
+      'Adventure':    'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=600&q=80', // Desert safari expedition
+      'Animation':    'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80', // Stylized artistic animation
+      'Childrens':    'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?auto=format&fit=crop&w=600&q=80', // Colorful playful scene
+      'Comedy':       'https://images.unsplash.com/photo-1514306191717-452ec28c7814?auto=format&fit=crop&w=600&q=80', // Spotlight stage stand-up
+      'Crime':        'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?auto=format&fit=crop&w=600&q=80', // Shadowy alley crime scene
+      'Documentary':  'https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&w=600&q=80', // Real-world cinema camera lens
+      'Drama':        'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=600&q=80', // Moody black & white drama
+      'Fantasy':      'https://images.unsplash.com/photo-1520038410233-7141be7e6f97?auto=format&fit=crop&w=600&q=80', // Mythical glowing forest
+      'Film-Noir':    'https://images.unsplash.com/photo-1453733197783-053938be9173?auto=format&fit=crop&w=600&q=80', // Detective in rain with trenchcoat
+      'Horror':       'https://images.unsplash.com/photo-1509248961158-e54f6934749c?auto=format&fit=crop&w=600&q=80', // Dark skull mask / haunting fog
+      'Musical':      'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80', // Vintage stage microphone & lights
+      'Mystery':      'https://images.unsplash.com/photo-1516339901601-2e1b62dc0c45?auto=format&fit=crop&w=600&q=80', // Mysterious foggy silhouette
+      'Romance':      'https://images.unsplash.com/photo-1518199266791-5375a83190b7?auto=format&fit=crop&w=600&q=80', // Sunset lovers silhouette
+      'Sci-Fi':       'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&q=80', // Deep space galaxy nebula
+      'Thriller':     'https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?auto=format&fit=crop&w=600&q=80', // High-tension dark city fog
+      'War':          'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80', // Battlefield soldier smoke
+      'Western':      'https://images.unsplash.com/photo-1533488765986-dfa2a9939acd?auto=format&fit=crop&w=600&q=80', // Wild west desert locomotive
+      'Unknown':      'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80', // Film clapperboard default
+    };
+
+    function getThumbnailByGenre(movie) {
+      // Pick thumbnail based strictly on the 1st genre feature of the movie
+      if (movie.genres && movie.genres.length > 0) {
+        const firstGenre = movie.genres[0]; // The 1st primary genre
+        if (GENRE_THUMBNAILS[firstGenre]) {
+          return GENRE_THUMBNAILS[firstGenre];
+        }
+      }
+      return GENRE_THUMBNAILS['Unknown'];
+    }
+
+    async function fetchRecommendations() {
+      const userId = document.getElementById('userIdInput').value;
+      const track = document.getElementById('movieTrack');
+      const errBox = document.getElementById('errorState');
+      const latencyTag = document.getElementById('latencyTag');
+      const latencyVal = document.getElementById('latencyVal');
+
+      // Update titles
+      document.getElementById('heroTitle').innerHTML = `Recommended for User <span class="text-brand font-mono">#${userId}</span>`;
+
+      // Clear & Show Skeletons
+      errBox.classList.add('hidden');
+      track.innerHTML = '';
+
+      for (let i = 0; i < 10; i++) {
+        const skel = document.createElement('div');
+        skel.className = "flex-none w-[240px] md:w-[260px] h-[380px] bg-card rounded-2xl animate-pulse border border-white/5";
+        track.appendChild(skel);
+      }
+
+      const startTime = performance.now();
+
+      try {
+        // Fetch up to 30 recommendations
+        const res = await fetch(`${API_BASE}/recommend/${userId}?top_k=30`);
+        
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || `Server error: ${res.status}`);
+        }
+
+        const data = await res.json();
+        const duration = Math.round(performance.now() - startTime);
+
+        latencyTag.classList.remove('hidden');
+        latencyVal.innerText = `${duration} ms`;
+        document.getElementById('itemCountTag').innerText = `${data.recommended.length} Movies`;
+
+        track.innerHTML = '';
+
+        data.recommended.forEach((movie, index) => {
+          const card = document.createElement('div');
+          // Netflix style vertical movie poster card
+          card.className = "flex-none w-[230px] md:w-[260px] h-[390px] rounded-2xl overflow-hidden relative group cursor-pointer border border-white/10 hover:border-brand/60 transition-all duration-300 hover:scale-105 hover:z-20 bg-card shadow-2xl flex flex-col justify-end";
+
+          const posterUrl = getThumbnailByGenre(movie);
+          const year = movie.release_date ? movie.release_date.split('-').pop() : '';
+
+          const genreBadges = (movie.genres || []).slice(0, 3).map(g => 
+            `<span class="text-[10px] font-bold uppercase tracking-wider bg-black/60 backdrop-blur border border-white/20 text-gray-200 px-2 py-0.5 rounded">${g}</span>`
+          ).join('');
+
+          card.innerHTML = `
+            <!-- Movie Thumbnail -->
+            <img 
+              src="${posterUrl}" 
+              alt="${movie.title}" 
+              class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition duration-700 ease-out"
+              loading="lazy"
+            />
+
+            <!-- Dark Overlay Gradient -->
+            <div class="absolute inset-0 poster-gradient"></div>
+
+            <!-- Rank Badge -->
+            <div class="absolute top-3 left-3 z-10 w-8 h-8 rounded-full bg-black/80 backdrop-blur border border-white/20 flex items-center justify-center font-black text-xs font-mono text-white shadow-lg">
+              ${index + 1}
+            </div>
+
+            <!-- Year Badge -->
+            <div class="absolute top-3 right-3 z-10 bg-black/70 backdrop-blur border border-white/10 text-gray-300 text-[11px] font-mono px-2 py-0.5 rounded-full font-bold">
+              ${year || 'N/A'}
+            </div>
+
+            <!-- Card Bottom Details -->
+            <div class="relative z-10 p-5 space-y-2">
+              <h3 class="font-bold text-base text-white leading-tight drop-shadow-md group-hover:text-brand transition line-clamp-2">
+                ${movie.title}
+              </h3>
+              
+              <div class="flex items-center space-x-2 text-xs text-gray-400 font-mono">
+                <span>ID: ${movie.movie_id}</span>
+                <span>•</span>
+                <span class="text-emerald-400 font-bold"><i class="fa-solid fa-star text-[10px] mr-1"></i>Match</span>
+              </div>
+
+              <!-- Genre Tags -->
+              <div class="flex flex-wrap gap-1.5 pt-1">
+                ${genreBadges}
+              </div>
+            </div>
+          `;
+          track.appendChild(card);
+        });
+
+      } catch (err) {
+        track.innerHTML = '';
+        errBox.classList.remove('hidden');
+        document.getElementById('errorMessage').innerHTML = `
+          ${err.message}<br><br>
+          Make sure your backend is running: <code>uvicorn recsys_api.main:app --port 8000</code>
+        `;
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', fetchRecommendations);
+  </script>
+</body>
+</html>
