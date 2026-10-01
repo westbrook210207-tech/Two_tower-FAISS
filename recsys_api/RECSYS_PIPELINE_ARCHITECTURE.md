@@ -375,6 +375,8 @@ This was your second fundamental question:
 
 This touches the exact boundary between **Offline ML Training** and **Online Systems Engineering**.
 
+Learning how to create user embeddings and item embeddings in the latent space from users' features and items' features is the model's job. Retrieving top_k items for a specific user using dot product is Qdrant's job.
+
 ---
 
 ### How `TwoTower.forward()` works during Training
