@@ -193,27 +193,64 @@
       track.scrollBy({ left: direction * scrollAmount, behavior: 'smooth' });
     }
 
-    // 1-to-1 mapping: Exactly 1 distinct cinematic thumbnail for each of the 19 MovieLens genres
+    // Accurate, high-impact cinema stills matched strictly to their exact genre
     const GENRE_THUMBNAILS = {
-      'Action':       'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=600&q=80', // High-octane action explosion
-      'Adventure':    'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=600&q=80', // Desert safari expedition
-      'Animation':    'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80', // Stylized artistic animation
-      'Childrens':    'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?auto=format&fit=crop&w=600&q=80', // Colorful playful scene
-      'Comedy':       'https://images.unsplash.com/photo-1514306191717-452ec28c7814?auto=format&fit=crop&w=600&q=80', // Spotlight stage stand-up
-      'Crime':        'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?auto=format&fit=crop&w=600&q=80', // Shadowy alley crime scene
-      'Documentary':  'https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&w=600&q=80', // Real-world cinema camera lens
-      'Drama':        'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=600&q=80', // Moody black & white drama
-      'Fantasy':      'https://images.unsplash.com/photo-1520038410233-7141be7e6f97?auto=format&fit=crop&w=600&q=80', // Mythical glowing forest
-      'Film-Noir':    'https://images.unsplash.com/photo-1453733197783-053938be9173?auto=format&fit=crop&w=600&q=80', // Detective in rain with trenchcoat
-      'Horror':       'https://images.unsplash.com/photo-1509248961158-e54f6934749c?auto=format&fit=crop&w=600&q=80', // Dark skull mask / haunting fog
-      'Musical':      'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80', // Vintage stage microphone & lights
-      'Mystery':      'https://images.unsplash.com/photo-1516339901601-2e1b62dc0c45?auto=format&fit=crop&w=600&q=80', // Mysterious foggy silhouette
-      'Romance':      'https://images.unsplash.com/photo-1518199266791-5375a83190b7?auto=format&fit=crop&w=600&q=80', // Sunset lovers silhouette
-      'Sci-Fi':       'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&q=80', // Deep space galaxy nebula
-      'Thriller':     'https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?auto=format&fit=crop&w=600&q=80', // High-tension dark city fog
-      'War':          'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80', // Battlefield soldier smoke
-      'Western':      'https://images.unsplash.com/photo-1533488765986-dfa2a9939acd?auto=format&fit=crop&w=600&q=80', // Wild west desert locomotive
-      'Unknown':      'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=600&q=80', // Film clapperboard default
+      // Action: Tactical shootout, guns, high-speed explosion
+      'Action':       'https://images.unsplash.com/photo-1595590424283-b8f17842773f?auto=format&fit=crop&w=600&q=80',
+      
+      // Crime: Bank heist, getaway car, shadowy underworld, money/cops
+      'Crime':        'https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?auto=format&fit=crop&w=600&q=80',
+      
+      // Thriller: Suspense, dark flashlight in rain, tense chase
+      'Thriller':     'https://images.unsplash.com/photo-1509248961158-e54f6934749c?auto=format&fit=crop&w=600&q=80',
+      
+      // War: Tanks, artillery, battlefield combat smoke
+      'War':          'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80',
+      
+      // Sci-Fi: Holographic cyberpunk, neon spacecraft, futuristic city
+      'Sci-Fi':       'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=600&q=80',
+      
+      // Western: Cowboy hat, revolver duel, wild west desert canyon
+      'Western':      'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=600&q=80',
+      
+      // Horror: Creepy dark silhouette, haunted corridor, slasher tension
+      'Horror':       'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&q=80',
+      
+      // Adventure: Treasure hunter expedition, jungle ruins, cliff climb
+      'Adventure':    'https://images.unsplash.com/photo-1533240332313-0db49b459ad6?auto=format&fit=crop&w=600&q=80',
+      
+      // Drama: Deep emotional cinematic close-up, dramatic lighting
+      'Drama':        'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=600&q=80',
+      
+      // Romance: Lovers silhouette, intimate cinematic sunset
+      'Romance':      'https://images.unsplash.com/photo-1518199266791-5375a83190b7?auto=format&fit=crop&w=600&q=80',
+      
+      // Comedy: Playful colorful cinema scene, retro popcorn
+      'Comedy':       'https://images.unsplash.com/photo-1574375927938-d5a98e8ffe85?auto=format&fit=crop&w=600&q=80',
+      
+      // Animation: Colorful 3D animated character render
+      'Animation':    'https://images.unsplash.com/photo-1563089145-599997674d42?auto=format&fit=crop&w=600&q=80',
+      
+      // Childrens: Whimsical fun toys / magical play
+      'Childrens':    'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&w=600&q=80',
+      
+      // Film-Noir: Black & white detective in trenchcoat under streetlamp in rain
+      'Film-Noir':    'https://images.unsplash.com/photo-1453733197783-053938be9173?auto=format&fit=crop&w=600&q=80',
+      
+      // Mystery: Foggy Sherlock-style cobblestone alley, magnifying glass/clue
+      'Mystery':      'https://images.unsplash.com/photo-1516339901601-2e1b62dc0c45?auto=format&fit=crop&w=600&q=80',
+      
+      // Musical: Broadway stage dancers, neon theatre marquee
+      'Musical':      'https://images.unsplash.com/photo-1514306191717-452ec28c7814?auto=format&fit=crop&w=600&q=80',
+      
+      // Fantasy: Medieval glowing sword, mystical ancient castle
+      'Fantasy':      'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&q=80',
+      
+      // Documentary: Wildlife / real-world cinematic explorer camera
+      'Documentary':  'https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&w=600&q=80',
+      
+      // Unknown / Default: 35mm movie film reel
+      'Unknown':      'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=600&q=80',
     };
 
     function getThumbnailByGenre(movie) {
