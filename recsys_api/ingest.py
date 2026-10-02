@@ -21,9 +21,11 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 
 # ── Config ────────────────────────────────────────────────────────────────────
-POSTGRES_DSN = "postgresql://recsys:recsys@localhost:5432/recsys"
-QDRANT_HOST  = "localhost"
-QDRANT_PORT  = 6333
+POSTGRES_DSN = "postgresql://recsys:recsys@localhost:5432/recsys" # This line basically means Connect to the PostgreSQL (postgresql) server running on my computer (localhost), through port 5432, using username recsys (1st one), password recsys (2nd one), and connect to the recsys database (last one).
+
+# Qdrant doesn't need a connection string like PG, just a host and port is enough and QdrantClient will handle the rest.
+QDRANT_HOST  = "localhost" # The host where Qdrant is running
+QDRANT_PORT  = 6333 # The port where Qdrant is listening for connections
 
 DATA_DIR     = "../ml-100k"       # path to the ml-100k folder
 MODEL_PATH   = "two_tower.pt"    # path to your saved model weights (see below)
@@ -183,7 +185,7 @@ async def push_postgres(movie: pd.DataFrame):
     Create a `movies` table and insert every row from the ml-100k u.item file.
     Columns stored: movie_id (PK), title, release_date, and all 19 genre flags.
     """
-    conn = await asyncpg.connect(POSTGRES_DSN)
+    conn = await asyncpg.connect(POSTGRES_DSN) # Connect Python to PostgreSQL using the DSN defined above. This allows us to execute SQL commands against the database.
 
     # Create table (idempotent)
     await conn.execute("""
@@ -214,7 +216,7 @@ async def push_postgres(movie: pd.DataFrame):
     """)
 
     # Truncate and re-insert (idempotent re-run)
-    await conn.execute("TRUNCATE movies")
+    await conn.execute("TRUNCATE movies") # execute is just a way that python let us do SQL commands
 
     genre_raw = [
         'unknown', 'Action', 'Adventure', 'Animation', "Children's", 'Comedy',
@@ -223,24 +225,26 @@ async def push_postgres(movie: pd.DataFrame):
     ]
 
     rows = []
-    for _, row in movie.iterrows():
-        release = row.get("release_date", "")
-        # NaN becomes an empty string so asyncpg doesn't fail on TEXT columns
-        if not isinstance(release, str):
-            release = ""
+    for _, row in movie.iterrows(): # This code go through each row in the movie df and extract the row data and index. Since we don't need the index, we use _ to ignore it. Then we can access the row data using row[column_name].
+        release = row.get("release_date", "") # check if release_date col exists in the df, if it does, get the value, if not, return an empty string.
+
+        # This code basically means If release_date isn't a string, replace it with an empty string. Since a lot of the release_date values are NaN, we need to handle that case.
+        if not isinstance(release, str): 
+            release = "" # NaN becomes an empty string so asyncpg doesn't fail on TEXT columns
         rows.append((
             int(row["movie_id"]),
             row["movie_title"],
-            release,
-            *(int(row[g]) for g in genre_raw),
+            release, # since we already handled NaN above, we can just use the release variable here instead of row["release_date"]
+            *(int(row[g]) for g in genre_raw), # we unpack the genre OneHot columns into the tuple using * and a generator expression. 
         ))
 
+    # executemany is a way to execute a SQL command for multiple rows at once, which is more efficient than doing it one by one with a for loop
     await conn.executemany("""
         INSERT INTO movies VALUES ($1,$2,$3,
           $4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
-    """, rows)
+    """, rows) # $1 through $22 are placeholders for the values in each row, which correspond to the columns in the movies table (title, release_date, and 19 genres). This allows us to insert all the movie data into the database in one go.
 
-    await conn.close()
+    await conn.close() # close the connection to the database after we're done inserting the data. This is important to free up resources and avoid potential connection leaks.
     print(f"✅  PostgreSQL: inserted {len(rows)} movies into `movies` table.")
 
 
@@ -263,14 +267,14 @@ def push_qdrant(movie_emb_np: np.ndarray, user_emb_np: np.ndarray):
             collection_name=collection_name,
             vectors_config=VectorParams(
                 size=embeddings.shape[1],
-                distance=Distance.DOT,   # same as your notebook (dot product)
+                distance=Distance.DOT,   # we'll use dot product to compute the score between user and movie embeddings.
             ),
         )
 
         client.upload_points(
             collection_name=collection_name,
             points=[
-                PointStruct(id=i, vector=embeddings[i].tolist())
+                PointStruct(id=i, vector=embeddings[i].tolist()) # PointStruct packages the embedding vector with its ID for Qdrant
                 for i in range(len(embeddings))
             ],
             wait=True,
