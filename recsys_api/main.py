@@ -43,7 +43,7 @@ async def lifespan(app: FastAPI):
     await postgres_store.connect()  # creates asyncpg connection pool
     print("✅ Ready to serve requests.")
 
-    yield  # ← server runs here
+    yield  # ← server runs here and wait until shutdown is triggered (e.g. Ctrl+C)
 
     print("🛑 Shutting down, closing connections …")
     await qdrant_store.close()
@@ -97,8 +97,9 @@ GENRE_COLUMNS = [
     "thriller", "war", "western",
 ]
 
+# Since Postgres stores genres as a set of boolean columns, we need to read that boolean data and convert it back to the original list of genres. For example, if a movie has action=1, comedy=1 and animation=0, we want to return ["Action", "Comedy"].
 def extract_genres(row: dict) -> List[str]:
-    return [col.replace("_", "-").title() for col in GENRE_COLUMNS if row.get(col)]
+    return [col.replace("_", "-").title() for col in GENRE_COLUMNS if row.get(col)] # This one helps transforming "sci_fi" into "Sci-Fi" and "film_noir" into "Film-Noir". The .title() method capitalizes the first letter of each word, and the .replace("_", "-") replaces underscores with hyphens. The if row.get(col) part filters out any genres that are not present (i.e., have a value of 0 or False in the database row).
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -153,8 +154,9 @@ async def recommend(
     movies_data = await postgres_store.fetch_movies(movie_ids)
 
     # ── Step 5: Build the response ────────────────────────────────────────────
+    # recommendations is List[MovieRecommendation]
     recommendations = [
-        MovieRecommendation(
+        MovieRecommendation( # We call out Movierecommendation model here for validation and type checking. This ensures that the data we return matches the expected schema.
             movie_id     = row["movie_id"],
             title        = row["title"],
             release_date = row.get("release_date", ""),
@@ -163,10 +165,10 @@ async def recommend(
         for row in movies_data
     ]
 
-    return RecommendResponse(
+    return RecommendResponse( # We call out RecommendResponse model here for validation and type checking. This ensures that the data we return matches the expected schema.
         user_id=user_id,
         top_k=top_k,
-        recommended=recommendations,
+        recommended=recommendations, # Plug recommendations into the response model.
     )
 
 

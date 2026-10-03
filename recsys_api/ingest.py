@@ -187,7 +187,7 @@ async def push_postgres(movie: pd.DataFrame):
     """
     conn = await asyncpg.connect(POSTGRES_DSN) # Connect Python to PostgreSQL using the DSN defined above. This allows us to execute SQL commands against the database.
 
-    # Create table (idempotent)
+    # Create table (idempotent), this is stored exactly like how the u.item file is structured, with movie_id as the primary key and all genre flags as smallints (0 or 1).
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS movies (
             movie_id      INTEGER PRIMARY KEY,
@@ -235,7 +235,7 @@ async def push_postgres(movie: pd.DataFrame):
             int(row["movie_id"]),
             row["movie_title"],
             release, # since we already handled NaN above, we can just use the release variable here instead of row["release_date"]
-            *(int(row[g]) for g in genre_raw), # we unpack the genre OneHot columns into the tuple using * and a generator expression. 
+            *(int(row[g]) for g in genre_raw), # we unpack the genre Boolean columns into the tuple using * and a generator expression. 
         ))
 
     # executemany is a way to execute a SQL command for multiple rows at once, which is more efficient than doing it one by one with a for loop
