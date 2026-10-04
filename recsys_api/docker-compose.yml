@@ -36,6 +36,8 @@ services:
       interval: 5s
       retries: 10
 
+# Notice that we didn't set any environment variables for Qdrant, because Qdrant doesn't require any authentication by default. However, in a production environment, we should consider enabling authentication and setting up environment variables accordingly.
+
 volumes: # This line tell Docker to manage these volumes for us
   postgres_data:
   qdrant_data:
