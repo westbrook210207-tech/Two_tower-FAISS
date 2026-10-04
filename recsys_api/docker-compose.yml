@@ -2,37 +2,41 @@ version: "3.9"
 
 services:
   # ── 1. PostgreSQL: stores movie metadata ──────────────────────────────────
-  postgres:
-    image: postgres:16
+  postgres: # This is the service name
+    image: postgres:16 # This is the image name, if we don't have it locally, docker will pull it from docker hub
     container_name: recsys_postgres
-    environment:
+    environment: # We'll later use this environment variables to connect to the database from our Python code via DSN
       POSTGRES_USER: recsys
       POSTGRES_PASSWORD: recsys
-      POSTGRES_DB: recsys
+      POSTGRES_DB: recsys # This tells the PostgreSQL image to initialize a database called recsys
     ports:
-      - "5432:5432"
+      - "5432:5432" # Host:Container, Docker forwards traffic from the host's port 5432 into PostgreSQL's port 5432 inside the container. 
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U recsys"]
-      interval: 5s
-      retries: 10
+      - postgres_data:/var/lib/postgresql/data # This line basically means "Take the Docker volume called postgres_data and mount it inside the PostgreSQL container at /var/lib/postgresql/data."
+    # But why do we need volume? 
+    # We need volume because if we don't use volume, the data will be stored inside the container's filesystem, and if we remove the container, the data will be lost. By using volume, we can persist the data even if we remove the container.
+    # In conclusion, we use volume so that the database files live in the persistent volume rather than being tied purely to the container lifecycle.
+    
+    healthcheck: # Checking if PG is ready to accept connections
+      test: ["CMD-SHELL", "pg_isready -U recsys"] # this line run the command "pg_isready -U recsys" in command line
+      interval: 5s # Run that health check approximately every 5 seconds.
+      retries: 10 # This tells Compose/Docker to tolerate repeated failures before deciding the healthcheck has failed.
 
   # ── 2. Qdrant: vector store for movie embeddings ──────────────────────────
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:latest # latest is a moving tag, so the exact image version can change when you pull again. For reproducibility, pinning a specific Qdrant version is generally safer.
     container_name: recsys_qdrant
-    ports:
+    ports: # We have 2 ports here because Qdrant has 2 APIs options: HTTP/REST and gRPC, both lead to the same endpoint. We will use HTTP/REST for our use case.
       - "6333:6333"   # HTTP / REST
       - "6334:6334"   # gRPC
-    volumes:
+    volumes: # Same as PostgreSQL, we use volume to persist the data even if we remove the container.
       - qdrant_data:/qdrant/storage
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:6333/healthz || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:6333/healthz || exit 1"] # || exit 1 means if the curl command fails, exit with status code 1, which indicates failure.
       interval: 5s
       retries: 10
 
-volumes:
+volumes: # This line tell Docker to manage these volumes for us
   postgres_data:
   qdrant_data:
 
