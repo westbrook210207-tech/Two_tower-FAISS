@@ -1,11 +1,10 @@
 fastapi
 uvicorn[standard]
+pydantic-settings
 qdrant-client
 asyncpg
-sqlalchemy[asyncio]
 torch
 numpy
 pandas
 scikit-learn
-python-dotenv
 

@@ -10,25 +10,30 @@
 # results to persistent stores instead of keeping them in memory.
 # ─────────────────────────────────────────────────────────────────────────────
 
+import asyncio
+
+import asyncpg
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from sklearn.preprocessing import StandardScaler
-import asyncio
-import asyncpg
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+
+from config import get_settings
 
 # ── Config ────────────────────────────────────────────────────────────────────
-POSTGRES_DSN = "postgresql://recsys:recsys@localhost:5432/recsys" # This line basically means Connect to the PostgreSQL (postgresql) server running on my computer (localhost), through port 5432, using username recsys (1st one), password recsys (2nd one), and connect to the recsys database (last one).
+_cfg = get_settings()
+
+POSTGRES_DSN = _cfg.postgres_dsn  # This line basically means Connect to the PostgreSQL (postgresql) server running on my computer (localhost), through port 5432, using username recsys (1st one), password recsys (2nd one), and connect to the recsys database (last one).
 
 # Qdrant doesn't need a connection string like PG, just a host and port is enough and QdrantClient will handle the rest.
-QDRANT_HOST  = "localhost" # The host where Qdrant is running
-QDRANT_PORT  = 6333 # The port where Qdrant is listening for connections
+QDRANT_HOST = _cfg.qdrant_host  # The host where Qdrant is running
+QDRANT_PORT = _cfg.qdrant_port  # The port where Qdrant is listening for connections
 
-DATA_DIR     = "../ml-100k"       # path to the ml-100k folder
-MODEL_PATH   = "two_tower.pt"    # path to your saved model weights (see below)
+DATA_DIR      = "../ml-100k"   # path to the ml-100k folder
+MODEL_PATH    = "two_tower.pt" # path to your saved model weights (see below)
 EMBEDDING_DIM = 64
 MOVIE_COLLECTION  = "movies"
 USER_COLLECTION   = "users"
@@ -88,7 +93,6 @@ def build_features():
     users["age"] = age_scaler.fit_transform(users[["age"]])
 
     # Step 3: one-hot occupation (21 categories in ml-100k → 21 cols)
-    from sklearn.preprocessing import OneHotEncoder
     occ_encoder = OneHotEncoder(sparse_output=False, handle_unknown="ignore")
     occ_encoded = occ_encoder.fit_transform(users[["occupation"]])
     occ_cols = occ_encoder.get_feature_names_out(["occupation"])
@@ -185,66 +189,84 @@ async def push_postgres(movie: pd.DataFrame):
     Create a `movies` table and insert every row from the ml-100k u.item file.
     Columns stored: movie_id (PK), title, release_date, and all 19 genre flags.
     """
-    conn = await asyncpg.connect(POSTGRES_DSN) # Connect Python to PostgreSQL using the DSN defined above. This allows us to execute SQL commands against the database.
+    # We use "async with ... as conn" instead of plain "conn = await asyncpg.connect()".
+    #
+    # Why? Because "async with" is a context manager — it guarantees that the
+    # connection is ALWAYS closed when the block exits, whether the code:
+    #   a) finishes successfully, OR
+    #   b) crashes halfway through with an exception
+    #
+    # Without it (the old way):
+    #   conn = await asyncpg.connect(...)
+    #   ... if something crashes here ...
+    #   await conn.close()   ← this line is never reached → connection leak
+    #
+    # With context manager:
+    #   async with await asyncpg.connect(...) as conn:
+    #       ... even if this crashes ...
+    #   ← conn.close() is called automatically by Python here, always
+    #
+    # For a one-shot script this is low risk, but it's the correct habit to build.
+    async with await asyncpg.connect(POSTGRES_DSN) as conn: # Connect Python to PostgreSQL using the DSN defined above. This allows us to execute SQL commands against the database.
 
-    # Create table (idempotent), this is stored exactly like how the u.item file is structured, with movie_id as the primary key and all genre flags as smallints (0 or 1).
-    await conn.execute("""
-        CREATE TABLE IF NOT EXISTS movies (
-            movie_id      INTEGER PRIMARY KEY,
-            title         TEXT,
-            release_date  TEXT,
-            unknown       SMALLINT,
-            action        SMALLINT,
-            adventure     SMALLINT,
-            animation     SMALLINT,
-            childrens     SMALLINT,
-            comedy        SMALLINT,
-            crime         SMALLINT,
-            documentary   SMALLINT,
-            drama         SMALLINT,
-            fantasy       SMALLINT,
-            film_noir     SMALLINT,
-            horror        SMALLINT,
-            musical       SMALLINT,
-            mystery       SMALLINT,
-            romance       SMALLINT,
-            sci_fi        SMALLINT,
-            thriller      SMALLINT,
-            war           SMALLINT,
-            western       SMALLINT
-        )
-    """)
+        # Create table (idempotent), this is stored exactly like how the u.item file is structured, with movie_id as the primary key and all genre flags as smallints (0 or 1).
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS movies (
+                movie_id      INTEGER PRIMARY KEY,
+                title         TEXT,
+                release_date  TEXT,
+                unknown       SMALLINT,
+                action        SMALLINT,
+                adventure     SMALLINT,
+                animation     SMALLINT,
+                childrens     SMALLINT,
+                comedy        SMALLINT,
+                crime         SMALLINT,
+                documentary   SMALLINT,
+                drama         SMALLINT,
+                fantasy       SMALLINT,
+                film_noir     SMALLINT,
+                horror        SMALLINT,
+                musical       SMALLINT,
+                mystery       SMALLINT,
+                romance       SMALLINT,
+                sci_fi        SMALLINT,
+                thriller      SMALLINT,
+                war           SMALLINT,
+                western       SMALLINT
+            )
+        """)
 
-    # Truncate and re-insert (idempotent re-run)
-    await conn.execute("TRUNCATE movies") # execute is just a way that python let us do SQL commands
+        # Truncate and re-insert (idempotent re-run)
+        await conn.execute("TRUNCATE movies") # execute is just a way that python let us do SQL commands
 
-    genre_raw = [
-        'unknown', 'Action', 'Adventure', 'Animation', "Children's", 'Comedy',
-        'Crime', 'Documentary', 'Drama', 'Fantasy', 'Film-Noir', 'Horror',
-        'Musical', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller', 'War', 'Western'
-    ]
+        genre_raw = [
+            'unknown', 'Action', 'Adventure', 'Animation', "Children's", 'Comedy',
+            'Crime', 'Documentary', 'Drama', 'Fantasy', 'Film-Noir', 'Horror',
+            'Musical', 'Mystery', 'Romance', 'Sci-Fi', 'Thriller', 'War', 'Western'
+        ]
 
-    rows = []
-    for _, row in movie.iterrows(): # This code go through each row in the movie df and extract the row data and index. Since we don't need the index, we use _ to ignore it. Then we can access the row data using row[column_name].
-        release = row.get("release_date", "") # check if release_date col exists in the df, if it does, get the value, if not, return an empty string.
+        rows = []
+        for _, row in movie.iterrows(): # This code go through each row in the movie df and extract the row data and index. Since we don't need the index, we use _ to ignore it. Then we can access the row data using row[column_name].
+            release = row.get("release_date", "") # check if release_date col exists in the df, if it does, get the value, if not, return an empty string.
 
-        # This code basically means If release_date isn't a string, replace it with an empty string. Since a lot of the release_date values are NaN, we need to handle that case.
-        if not isinstance(release, str): 
-            release = "" # NaN becomes an empty string so asyncpg doesn't fail on TEXT columns
-        rows.append((
-            int(row["movie_id"]),
-            row["movie_title"],
-            release, # since we already handled NaN above, we can just use the release variable here instead of row["release_date"]
-            *(int(row[g]) for g in genre_raw), # we unpack the genre Boolean columns into the tuple using * and a generator expression. 
-        ))
+            # This code basically means If release_date isn't a string, replace it with an empty string. Since a lot of the release_date values are NaN, we need to handle that case.
+            if not isinstance(release, str): 
+                release = "" # NaN becomes an empty string so asyncpg doesn't fail on TEXT columns
+            rows.append((
+                int(row["movie_id"]),
+                row["movie_title"],
+                release, # since we already handled NaN above, we can just use the release variable here instead of row["release_date"]
+                *(int(row[g]) for g in genre_raw), # we unpack the genre Boolean columns into the tuple using * and a generator expression. 
+            ))
 
-    # executemany is a way to execute a SQL command for multiple rows at once, which is more efficient than doing it one by one with a for loop
-    await conn.executemany("""
-        INSERT INTO movies VALUES ($1,$2,$3,
-          $4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
-    """, rows) # $1 through $22 are placeholders for the values in each row, which correspond to the columns in the movies table (title, release_date, and 19 genres). This allows us to insert all the movie data into the database in one go.
+        # executemany is a way to execute a SQL command for multiple rows at once, which is more efficient than doing it one by one with a for loop
+        await conn.executemany("""
+            INSERT INTO movies VALUES ($1,$2,$3,
+              $4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+        """, rows) # $1 through $22 are placeholders for the values in each row, which correspond to the columns in the movies table (title, release_date, and 19 genres). This allows us to insert all the movie data into the database in one go.
 
-    await conn.close() # close the connection to the database after we're done inserting the data. This is important to free up resources and avoid potential connection leaks.
+    # conn.close() is NOT needed here — the "async with" block above handles it automatically.
     print(f"✅  PostgreSQL: inserted {len(rows)} movies into `movies` table.")
 
 

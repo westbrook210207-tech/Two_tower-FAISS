@@ -19,17 +19,14 @@ from typing import List
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel
 
-try:
-    from recsys_api.db import qdrant_store, postgres_store
-except ModuleNotFoundError:
-    from db import qdrant_store, postgres_store
+from db import qdrant_store, postgres_store
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Startup / shutdown lifecycle
 # ─────────────────────────────────────────────────────────────────────────────
 
-@asynccontextmanager
+@asynccontextmanager # this goes default with the lifespan
 async def lifespan(app: FastAPI):
     """
     FastAPI 'lifespan' hook:
@@ -91,6 +88,7 @@ class RecommendResponse(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────────
 
 GENRE_COLUMNS = [
+    "unknown",
     "action", "adventure", "animation", "childrens", "comedy",
     "crime", "documentary", "drama", "fantasy", "film_noir",
     "horror", "musical", "mystery", "romance", "sci_fi",

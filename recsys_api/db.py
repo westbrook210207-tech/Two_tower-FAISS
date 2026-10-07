@@ -14,12 +14,15 @@ from typing import List, Dict, Any
 
 import asyncpg
 from qdrant_client import AsyncQdrantClient
-from traitlets import This
 
+from config import get_settings
 
-QDRANT_HOST  = "localhost"
-QDRANT_PORT  = 6333
-POSTGRES_DSN = "postgresql://recsys:recsys@localhost:5432/recsys"
+# ── Connection settings (loaded once from .env via pydantic-settings) ─────────
+_cfg = get_settings()
+
+QDRANT_HOST  = _cfg.qdrant_host
+QDRANT_PORT  = _cfg.qdrant_port
+POSTGRES_DSN = _cfg.postgres_dsn
 
 MOVIE_COLLECTION = "movies"
 USER_COLLECTION  = "users"

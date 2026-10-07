@@ -5,7 +5,6 @@ __pycache__/
 
 # Environment variables & secrets (prevent accidental credential leaks)
 .env
-.env.*
 *.env
 
 # Operating System files

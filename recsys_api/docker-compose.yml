@@ -1,14 +1,16 @@
-version: "3.9"
+# All services read shared credentials from .env (same directory as this file).
+# Docker Compose automatically picks up .env in the same folder as docker-compose.yml.
 
 services:
   # ── 1. PostgreSQL: stores movie metadata ──────────────────────────────────
   postgres: # This is the service name
     image: postgres:16 # This is the image name, if we don't have it locally, docker will pull it from docker hub
     container_name: recsys_postgres
+    env_file: .env  # Loads POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB from .env
     environment: # We'll later use this environment variables to connect to the database from our Python code via DSN
-      POSTGRES_USER: recsys
-      POSTGRES_PASSWORD: recsys
-      POSTGRES_DB: recsys # This tells the PostgreSQL image to initialize a database called recsys
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}    # This tells the PostgreSQL image to initialize a database called recsys
     ports:
       - "5432:5432" # Host:Container, Docker forwards traffic from the host's port 5432 into PostgreSQL's port 5432 inside the container. 
     volumes:
@@ -18,7 +20,7 @@ services:
     # In conclusion, we use volume so that the database files live in the persistent volume rather than being tied purely to the container lifecycle.
     
     healthcheck: # Checking if PG is ready to accept connections
-      test: ["CMD-SHELL", "pg_isready -U recsys"] # this line run the command "pg_isready -U recsys" in command line
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"] # this line run the command "pg_isready -U recsys" in command line
       interval: 5s # Run that health check approximately every 5 seconds.
       retries: 10 # This tells Compose/Docker to tolerate repeated failures before deciding the healthcheck has failed.
 
@@ -41,4 +43,3 @@ services:
 volumes: # This line tell Docker to manage these volumes for us
   postgres_data:
   qdrant_data:
-
