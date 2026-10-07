@@ -730,7 +730,8 @@ In asynchronous Python (`async def` / `await`):
 docker compose -f recsys_api/docker-compose.yml up -d
 
 # 2. Start FastAPI application server with hot-reloading
-uvicorn recsys_api.main:app --reload --port 8000
+cd recsys_api
+uvicorn main:app --reload --port 8000
 
 # 3. Test with curl
 curl -s "http://localhost:8000/recommend/42?top_k=5" | python3 -m json.tool
