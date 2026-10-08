@@ -15,7 +15,7 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Since this is a local production, we'll have default value revealed. 
-# But in real production, these values are required to manually set
+# But in real production, these values are required to be manually set
 
 class Settings(BaseSettings):
     # ── PostgreSQL ─────────────────────────────────────────────────────────────

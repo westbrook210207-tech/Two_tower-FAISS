@@ -2,8 +2,3 @@
 2) Top rated = popularity base
 3) MovieLen100k = csv or postgress table
 4) Scroll down with 5 per row
-
-Priority:
-1) Dockerize FastAPI
-2) Have env var inside .env
-3) Create a config.py for pydantic setting for type checking, converting and validation and setup @lru_cache
